@@ -1,0 +1,119 @@
+//C++
+#include <AccelStepper.h>  //include AccelStepper library
+#include <math.h>          //include math library
+
+
+//declaring and making space for variables
+//storage
+const int sensor1 = A1;    //ldr sensor 1 pin
+const int sensor2 = A0;    //ldr sensor 2 pin
+unsigned long sT, t1, t2;  //assign variables to start time, ldr time1 and time2
+bool trip = false;         //declare boolean variable to use for ldr triggering
+//making room for all the variable values
+float deltaTbetween;    //time between marble passing sensor 1 and 2
+float deltaTfr;         //time it will take marble to hit the ground
+float deltaX;           //distance in x that the marble will travel before hitting the ground
+float deltaY;           //distance in y that the marble will fall before hitting the ground
+float xbetweensensors;  //distance between ldr sensors
+float aY;               //gravity/acceleration in y
+float Vix;              //the x component of the marble’s velocity
+
+
+//stepper stuff
+//set stepper and enable pins
+AccelStepper stepper(AccelStepper::DRIVER, 2, 5);  //set number of stepper pins,  and create an accelstepper object
+
+
+#define ENABLE_PIN 8  //this pin is a master switch for the stepper
+//the default is that the motor is off and the pin is HIGH
+//this pin controls the current heading to the motor, allowing it to rotate when the pin is LOW
+
+
+void setup() {
+  //setting up the IR sensors
+  //sensors will input info
+  pinMode(sensor1, INPUT);  //sensor 1 alerts the computer, inputs, that the sensor has been triggered
+  pinMode(sensor2, INPUT);
+  sT = millis();       //getting the time the code has been running for
+  Serial.begin(9600);  //setting up serial monitor
+
+
+  //stepper stuff
+  //output
+  pinMode(ENABLE_PIN, OUTPUT);    //the enable pin outputs whether the stepper is on (HIGH) or off (LOW)
+  digitalWrite(ENABLE_PIN, LOW);  // Enable drivers
+
+
+  //output
+  stepper.setSpeed(20000);          //stepper speed to move at essentially as fast as possible, larger than the maximum but we haven't encountered problems with that
+  stepper.setMaxSpeed(20000);       //stepper max speed essentially as fast as possible, larger than the maximum but we haven't encountered problems with that
+  stepper.setAcceleration(100000);  //stepper acceleration essentially as fast as possible
+  // larger than the maximum but we haven't encountered problems with that because of the slowness of the arduino
+}
+
+
+void loop() {
+  int r1 = digitalRead(sensor1);
+  int r2 = digitalRead(sensor2);  //constantly read the two sensors
+
+
+  //giving variables constant values
+  xbetweensensors = 0.04;  //set the distance between sensors
+  aY = 9.81;               //set the force of gravity ಠಿ_ಠ
+  deltaY = 0.713;          //set the distance the marble will fall in y
+
+
+  if (r1 == LOW && !trip) {
+    t1 = millis();
+    trip = true;
+    // if the boolean variable is not tripped and the first ldr detects the marble, set time 1 to the current time and set the boolean variable to true
+  }
+  if (r2 == LOW && trip) {
+    t2 = millis();
+    trip = false;
+    // if the boolean variable is tripped and the second ldr detects the marble, set time 2 to the current time and set the boolean variable to false
+
+
+    //processing
+    //initial calculations for predicting where the marble will land
+    deltaTfr = sqrt(2 * deltaY / aY);         //calculate deltaT between detection and the marble hitting the ground
+    deltaTbetween = (t2 - t1) / 1000.00;      //calculate deltaT between sensors
+    Vix = (xbetweensensors / deltaTbetween);  //calculate velocity in x
+    Serial.print(Vix);
+    Serial.println(" m/s");
+    Serial.print((Vix)*3.6);
+    Serial.println(" km/h");  //print speeds with units
+
+
+    deltaX = ((Vix)*deltaTfr);  //calculate distance marble will travel in x
+    Serial.print(deltaX);
+    Serial.println(" m");
+    //print distance
+
+
+    //stepper stuff
+    long noSteps = ((deltaX - 0.245) * 5100);  // yo, save some space for this variable.
+    //calculating the number of steps needed using how far it needs to go from where the marble leaves the ramp
+    //and subtracting the head start the cup has and multiplying the number of meters it must go by the number of steps/meter
+    Serial.println(noSteps);  // printing the target steps, negative or positive?
+
+
+    stepper.moveTo(noSteps);  //move (noSteps)-number of steps
+    //sets target position
+    while (stepper.distanceToGo() != 0) {  // keep repeating while condition is true,(until the distance it needs to go to reach the target is zero)
+                                           //stepper distance to go is using the accel stepper library -> targetPosition − currentPosition
+                                           //it needs to move to the target minus the amount it has already moved towards the target. It finds how many steps are left to go. This makes sense :)
+      stepper.run();                       // it controls each step the stepper does, one at a time
+                                           //checks the time, sees if the stepper needs to move, moves the stepper, updates the current position, and handles the acceleration
+    }
+    delay(5000);  // this makes the cup wait once its at its target position
+
+
+    stepper.moveTo(0);  // go back to origin
+    while (stepper.distanceToGo() != 0) {
+      stepper.run();
+    }
+    delay(5000);  // makes the stepper wait once it has returned to zero (we won’t need to make it go again within five seconds)
+                  //we use blocking code because it only comes into play if we already know the speed of the marble
+  }
+}
