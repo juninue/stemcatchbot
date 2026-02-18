@@ -15,3 +15,6 @@ we put the driver into the x slot of the cnc shield.
 5V, GND, A1 and A0 connect to pins on top of the cnc shield for the ir sensors.
 
 please set your own values for acceleration and speed if you aren't sure about the speed of your board. an esp32 for example could damage the motor if those values are so high past the maximum.
+
+
+like and subscribe for more exciting stem challenges.
